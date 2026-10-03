@@ -21,11 +21,13 @@ LobeHub name, icon, bundle identifier, and Developer ID team.
    from this repository's release matching its `@auv-js/cli` version and
    embeds the unpacked, notarized app in `LobeHub.app`. The app must not be
    re-signed during packaging, which would discard its stapled ticket.
-2. At runtime, Desktop sets `AUV_MACOS_HELPER_APP` to the embedded app's
-   absolute path for the `auv` daemon and every `auv setup macos-helper` call.
-3. `auv setup macos-helper install` reads the bundle identifier and Team ID
-   from the app's signature, copies it to the install location above, and
-   registers its LaunchAgent. The daemon trusts only that identity.
+2. At runtime, Desktop passes the embedded app's absolute path to AUV:
+   `startAuv({ platforms: { macos: { helperApp } } })` for the daemon, and
+   `installMacosHelper({ helperApp })` / `macosHelperStatus({ helperApp })`
+   from `@auv-js/cli` (or `auv setup macos-helper --helper-app <path>`).
+3. Install reads the bundle identifier and Team ID from the app's signature,
+   copies it to the install location above, and registers its LaunchAgent.
+   The daemon trusts only that identity.
 
 See AUV's
 [helper setup reference](https://github.com/moeru-ai/auv/blob/main/docs/ai/references/session-api/2026-10-01-macos-helper-setup.md#shipped-helper-identity).
