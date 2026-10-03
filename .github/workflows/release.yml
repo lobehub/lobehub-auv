@@ -1,0 +1,119 @@
+name: Release helper
+
+# Builds "LobeHub Computer Use.app", the LobeHub-branded AUV macOS helper, from
+# a tagged moeru-ai/auv release, then signs, notarizes, and publishes it as a
+# GitHub release of this repository. LobeHub Desktop embeds the app and points
+# its bundled `auv` at it through AUV_MACOS_HELPER_APP.
+
+on:
+  workflow_dispatch:
+    inputs:
+      auv_version:
+        description: moeru-ai/auv release to build from, without the leading v (for example 0.0.25)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  HELPER_NAME: LobeHub Computer Use
+  HELPER_BUNDLE_ID: com.lobehub.lobehub-desktop.computer-use
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+            arch: arm64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            arch: x64
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/checkout@v6
+        with:
+          repository: moeru-ai/auv
+          ref: v${{ inputs.auv_version }}
+          path: auv
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Import signing certificate
+        uses: apple-actions/import-codesign-certs@v7
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Build icon
+        run: scripts/build-icon.sh "$PWD/build/icon"
+
+      - name: Build, sign, and notarize
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          identity="$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer ID Application:.*\)".*/\1/p' | head -n 1)"
+          test -n "$identity"
+          output="$PWD/build/helper"
+          app="$output/$HELPER_NAME.app"
+          AUV_MACOS_TARGET='${{ matrix.target }}' \
+            AUV_MACOS_SIGN_IDENTITY="$identity" \
+            AUV_MACOS_TEAM_ID="$APPLE_TEAM_ID" \
+            AUV_MACOS_HELPER_NAME="$HELPER_NAME" \
+            AUV_MACOS_HELPER_BUNDLE_ID="$HELPER_BUNDLE_ID" \
+            AUV_MACOS_HELPER_ICON="$PWD/build/icon/$HELPER_NAME.icns" \
+            auv/crates/auv-device-helper-macos/package/package.sh "$output"
+          ditto -c -k --keepParent "$app" build/notarization.zip
+          xcrun notarytool submit build/notarization.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --wait
+          xcrun stapler staple "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+          asset="LobeHub-Computer-Use-${{ inputs.auv_version }}-${{ matrix.arch }}.zip"
+          ditto -c -k --keepParent "$app" "build/$asset"
+          (cd build && shasum -a 256 "$asset" > "$asset.sha256")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: helper-${{ matrix.arch }}
+          path: |
+            build/LobeHub-Computer-Use-*.zip
+            build/LobeHub-Computer-Use-*.zip.sha256
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: helper-*
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.auv_version }}
+        run: |
+          gh release create "v$VERSION" artifacts/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "LobeHub Computer Use $VERSION" \
+            --notes "Built from https://github.com/moeru-ai/auv/releases/tag/v$VERSION"
