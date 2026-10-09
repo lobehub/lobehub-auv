@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       auv_version:
-        description: moeru-ai/auv release to build from, without the leading v (for example 0.0.25)
+        description: moeru-ai/auv release to build from, without the leading v (for example 0.0.31)
         required: true
         type: string
 
@@ -54,9 +54,6 @@ jobs:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
-      - name: Build icon
-        run: scripts/build-icon.sh "$PWD/build/icon"
-
       - name: Build, sign, and notarize
         shell: bash
         env:
@@ -74,7 +71,7 @@ jobs:
             AUV_MACOS_TEAM_ID="$APPLE_TEAM_ID" \
             AUV_MACOS_HELPER_NAME="$HELPER_NAME" \
             AUV_MACOS_HELPER_BUNDLE_ID="$HELPER_BUNDLE_ID" \
-            AUV_MACOS_HELPER_ICON="$PWD/build/icon/$HELPER_NAME.icns" \
+            AUV_MACOS_HELPER_ICON="$PWD/icon/$HELPER_NAME.icns" \
             auv/crates/auv-device-helper-macos/package/package.sh "$output"
           ditto -c -k --keepParent "$app" build/notarization.zip
           xcrun notarytool submit build/notarization.zip \

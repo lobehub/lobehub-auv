@@ -35,7 +35,7 @@ See AUV's
 ## Releasing
 
 Run the **Release helper** workflow with the AUV version (for example
-`0.0.25`). It checks out `moeru-ai/auv` at `v<version>`, builds the helper for
+`0.0.31`). It checks out `moeru-ai/auv` at `v<version>`, builds the helper for
 arm64 and x64 with AUV's `package.sh`, signs and notarizes it, and publishes
 release `v<version>` with one zip and SHA-256 file per architecture.
 
@@ -47,15 +47,5 @@ Required repository secrets, the same as LobeHub Desktop's macOS release:
 
 ## Icon
 
-`icon/app-stable.embedded.svg` is the design export: the LobeHub app icon with
-the AUV icon as a circular badge. `scripts/build-icon.sh` recomposes its two
-embedded PNG layers at 1024px and builds the `.icns` used by the helper.
-
-The LobeHub layer in that export is only 514px, so large icon sizes are
-upscaled. A 1024px export, or separate layers for an Icon Composer `.icon`
-document (which AUV's `package.sh` also accepts), would give a sharper,
-Liquid Glass–native icon.
-
-```sh
-scripts/build-icon.sh build/icon
-```
+`icon/LobeHub Computer Use.icns` is the design export used as the helper's
+icon. To change the icon, replace that file.
